@@ -16,6 +16,13 @@ limite des déclarations de revenus, prestation de décès du RRQ). Une liste de
 documents à rassembler est cochable, la progression est conservée localement
 dans le navigateur et la liste peut être imprimée au complet.
 
+L'écran « Dossier notaire » rassemble toutes les informations dont le notaire
+a besoin (défunt, héritiers, biens, documents en main, points de vigilance)
+dans un document mis en page : imprimable en PDF, téléchargeable, ou prérempli
+dans un courriel destiné au notaire. La dernière étape — la signature des
+actes — se fait chez le notaire, en personne ou par vidéoconférence (acte
+notarié technologique).
+
 > Héritia est un outil d'information et d'organisation. Il ne remplace pas les
 > conseils d'un notaire ou d'un avocat.
 
@@ -46,7 +53,10 @@ serveur est configuré — la clé API ne vit jamais dans le navigateur :
 
 - `src/data/parcours.js` — questions du questionnaire, calcul des échéances et
   construction du parcours personnalisé (le contenu juridique vit ici)
-- `src/components/` — écrans Accueil, Questionnaire, Parcours et Assistant
+- `src/data/dossier.js` — génération du dossier pour le notaire (sections,
+  texte pour courriel, document HTML téléchargeable)
+- `src/components/` — écrans Accueil, Questionnaire, Parcours, DossierNotaire
+  et Assistant
 - `server/assistant.example.js` — relais serverless pour l'assistant IA
 - `scripts/apercu.js` — génère `heritia-apercu.html`, version autonome du site
 - `tests/smoke.test.jsx` — vérifie la personnalisation, les échéances et le

@@ -175,6 +175,20 @@ const LIENS = {
   },
 };
 
+export const DOCUMENTS = [
+  { id: "doc-certificats", t: "Certificats de décès (plusieurs copies)" },
+  { id: "doc-testament", t: "Testament et codicilles" },
+  { id: "doc-mariage", t: "Contrat de mariage ou d'union civile" },
+  { id: "doc-bancaires", t: "Relevés bancaires et de placements" },
+  { id: "doc-assurances", t: "Polices d'assurance vie" },
+  { id: "doc-propriete", t: "Titres de propriété et certificat de localisation" },
+  { id: "doc-impots", t: "Déclarations de revenus des deux dernières années" },
+  { id: "doc-dettes", t: "Factures, relevés de cartes de crédit et de prêts" },
+  { id: "doc-logement", t: "Bail ou relevé hypothécaire" },
+  { id: "doc-vehicule", t: "Certificat d'immatriculation du véhicule" },
+  { id: "doc-cartes", t: "Cartes RAMQ et numéro d'assurance sociale" },
+];
+
 // ───── Calcul des échéances à partir de la date du décès ─────
 
 const FORMAT_DATE = new Intl.DateTimeFormat("fr-CA", {
@@ -247,19 +261,7 @@ export function buildParcours(r) {
       titre: "Rassembler les documents importants",
       description:
         "Un dossier complet vous fera gagner des mois. Cochez les documents au fur et à mesure que vous les retrouvez :",
-      sousTaches: [
-        { id: "doc-certificats", t: "Certificats de décès (plusieurs copies)" },
-        { id: "doc-testament", t: "Testament et codicilles" },
-        { id: "doc-mariage", t: "Contrat de mariage ou d'union civile" },
-        { id: "doc-bancaires", t: "Relevés bancaires et de placements" },
-        { id: "doc-assurances", t: "Polices d'assurance vie" },
-        { id: "doc-propriete", t: "Titres de propriété et certificat de localisation" },
-        { id: "doc-impots", t: "Déclarations de revenus des deux dernières années" },
-        { id: "doc-dettes", t: "Factures, relevés de cartes de crédit et de prêts" },
-        { id: "doc-logement", t: "Bail ou relevé hypothécaire" },
-        { id: "doc-vehicule", t: "Certificat d'immatriculation du véhicule" },
-        { id: "doc-cartes", t: "Cartes RAMQ et numéro d'assurance sociale" },
-      ],
+      sousTaches: DOCUMENTS,
     },
     {
       id: "proteger",
@@ -390,6 +392,13 @@ export function buildParcours(r) {
       titre: "Annuler ou transférer les contrats et abonnements",
       description:
         "Téléphone, électricité (Hydro-Québec), assurances habitation et auto, cartes de crédit, abonnements. Maintenez les assurances sur les biens de la succession jusqu'au partage.",
+    },
+    {
+      id: "dossier-notaire",
+      titre: "Constituer et transmettre votre dossier au notaire",
+      description:
+        "Héritia rassemble pour vous toutes les informations dont le notaire a besoin — défunt, héritiers, biens, documents déjà en main — dans un document clair et structuré. Générez-le, puis transmettez-le à votre notaire : la première rencontre sera beaucoup plus courte et efficace. Le notaire vous demandera lui-même, de façon sécurisée, les renseignements sensibles comme le numéro d'assurance sociale.",
+      action: "dossier",
     }
   );
 
@@ -471,6 +480,12 @@ export function buildParcours(r) {
   }
 
   t3.push(
+    {
+      id: "signature-notaire",
+      titre: "Signer les actes chez le notaire — en personne ou par vidéoconférence",
+      description:
+        "À partir de votre dossier, le notaire prépare les actes nécessaires (vérification de testament, déclaration de transmission, renonciation, inventaire notarié…) puis vous convoque pour la signature. Au Québec, l'acte notarié technologique permet de signer à distance : le notaire vérifie votre identité par vidéoconférence et vous signez électroniquement, sans vous déplacer. La signature à son étude reste toujours possible si vous préférez.",
+    },
     {
       id: "impots",
       titre: "Produire les déclarations de revenus du défunt",

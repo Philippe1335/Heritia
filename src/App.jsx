@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Accueil from "./components/Accueil.jsx";
 import Questionnaire from "./components/Questionnaire.jsx";
 import Parcours from "./components/Parcours.jsx";
+import DossierNotaire from "./components/DossierNotaire.jsx";
 import Assistant, { URL_ASSISTANT } from "./components/Assistant.jsx";
 import { buildParcours, CLES_REQUISES } from "./data/parcours.js";
 
@@ -24,23 +25,24 @@ function chargerEtat() {
 export default function App() {
   const [etat, setEtat] = useState(() => {
     const sauvegarde = chargerEtat();
-    if (!sauvegarde) return { ecran: "accueil", reponses: null, faits: {} };
+    if (!sauvegarde) return { ecran: "accueil", reponses: null, faits: {}, dossier: {} };
     return {
       // une sauvegarde d'une version antérieure (questions manquantes) renvoie
       // au questionnaire prérempli plutôt qu'à un parcours incomplet
       ecran: reponsesCompletes(sauvegarde.reponses) ? "parcours" : "questionnaire",
       reponses: sauvegarde.reponses,
       faits: sauvegarde.faits || {},
+      dossier: sauvegarde.dossier || {},
     };
   });
   const [chatOuvert, setChatOuvert] = useState(false);
 
   useEffect(() => {
-    if (etat.ecran === "parcours" && etat.reponses) {
+    if ((etat.ecran === "parcours" || etat.ecran === "dossier") && etat.reponses) {
       try {
         localStorage.setItem(
           CLE_STOCKAGE,
-          JSON.stringify({ reponses: etat.reponses, faits: etat.faits })
+          JSON.stringify({ reponses: etat.reponses, faits: etat.faits, dossier: etat.dossier })
         );
       } catch {
         // mode privé ou quota dépassé : la progression ne sera simplement pas conservée
@@ -61,11 +63,15 @@ export default function App() {
     } catch {
       // rien à faire
     }
-    setEtat({ ecran: "accueil", reponses: null, faits: {} });
+    setEtat({ ecran: "accueil", reponses: null, faits: {}, dossier: {} });
   };
 
   const basculerFait = (id) =>
     setEtat((e) => ({ ...e, faits: { ...e.faits, [id]: !e.faits[id] } }));
+
+  const ouvrirDossier = () => setEtat((e) => ({ ...e, ecran: "dossier" }));
+  const fermerDossier = () => setEtat((e) => ({ ...e, ecran: "parcours" }));
+  const majDossier = (dossier) => setEtat((e) => ({ ...e, dossier }));
 
   return (
     <div className="app">
@@ -84,7 +90,17 @@ export default function App() {
           onBasculerFait={basculerFait}
           onModifier={modifierReponses}
           onRecommencer={recommencer}
+          onDossier={ouvrirDossier}
           onChat={URL_ASSISTANT ? () => setChatOuvert(true) : null}
+        />
+      )}
+      {etat.ecran === "dossier" && (
+        <DossierNotaire
+          dossier={etat.dossier}
+          reponses={etat.reponses}
+          faits={etat.faits}
+          onMaj={majDossier}
+          onRetour={fermerDossier}
         />
       )}
       {chatOuvert && (

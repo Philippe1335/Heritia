@@ -16,7 +16,7 @@ const FORMAT_DATE = new Intl.DateTimeFormat("fr-CA", {
   year: "numeric",
 });
 
-function Tache({ tache, faits, ouvert, onBasculerFait, onOuvrir }) {
+function Tache({ tache, faits, ouvert, onBasculerFait, onOuvrir, onDossier }) {
   const fait = !!faits[tache.id];
   return (
     <div className={`tache${fait ? " faite" : ""}`}>
@@ -59,6 +59,13 @@ function Tache({ tache, faits, ouvert, onBasculerFait, onOuvrir }) {
               ))}
             </ul>
           )}
+          {tache.action === "dossier" && onDossier && (
+            <p>
+              <button className="btn-or btn-action" onClick={onDossier}>
+                Préparer mon dossier notaire
+              </button>
+            </p>
+          )}
           {tache.attention && (
             <p className="attention">
               <strong>Attention&nbsp;:</strong> {tache.attention}
@@ -86,6 +93,7 @@ export default function Parcours({
   onBasculerFait,
   onModifier,
   onRecommencer,
+  onDossier,
   onChat,
 }) {
   const [ouvert, setOuvert] = useState(null);
@@ -159,6 +167,7 @@ export default function Parcours({
                 ouvert={ouvert === t.id}
                 onBasculerFait={onBasculerFait}
                 onOuvrir={() => setOuvert(ouvert === t.id ? null : t.id)}
+                onDossier={onDossier}
               />
             ))}
           </section>
@@ -166,6 +175,9 @@ export default function Parcours({
       })}
 
       <div className="parcours-actions">
+        <button className="btn-discret" onClick={onDossier}>
+          Mon dossier notaire
+        </button>
         <button className="btn-discret" onClick={() => window.print()}>
           Imprimer ma liste
         </button>

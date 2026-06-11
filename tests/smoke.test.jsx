@@ -6,6 +6,8 @@ import App from "../src/App.jsx";
 import Parcours from "../src/components/Parcours.jsx";
 import Questionnaire from "../src/components/Questionnaire.jsx";
 import { buildParcours, calculerEcheances, QUESTIONS } from "../src/data/parcours.js";
+import DossierNotaire from "../src/components/DossierNotaire.jsx";
+import { construireSections, dossierEnTexte, dossierEnHtml } from "../src/data/dossier.js";
 
 const base = {
   testament: "notarie",
@@ -136,4 +138,62 @@ for (const attendu of [
   if (!parcours.includes(attendu)) throw new Error("parcours : manque « " + attendu + " »");
 }
 console.log("OK rendu parcours complet");
+
+// 6. Les nouvelles étapes notaire sont dans tous les parcours
+const idsNotaire = buildParcours(base).flatMap((p) => p.taches.map((t) => t.id));
+for (const id of ["dossier-notaire", "signature-notaire"])
+  if (!idsNotaire.includes(id)) throw new Error(`manque l'étape ${id}`);
+console.log("OK étapes dossier et signature notaire");
+
+// 7. Génération du dossier pour le notaire
+const dossier = {
+  defuntNom: "Jeanne Tremblay",
+  defuntAdresse: "12 rue des Érables, Québec",
+  demandeurNom: "Marc Tremblay",
+  heritiers: [
+    { nom: "Marc Tremblay", lien: "fils" },
+    { nom: "Léa Tremblay", lien: "fille, 16 ans" },
+    { nom: "", lien: "" },
+  ],
+  institutions: "Desjardins",
+  notes: "Le chalet est-il dans le patrimoine familial?",
+  notaireCourriel: "notaire@exemple.ca",
+};
+const sections = construireSections(dossier, reponses, { recherche: true, "doc-testament": true });
+const titres = sections.map((s) => s.titre);
+for (const t of ["Personne décédée", "Héritiers connus", "Patrimoine", "Points de vigilance", "Documents"])
+  if (!titres.includes(t)) throw new Error("dossier : section manquante « " + t + " »");
+const texte = dossierEnTexte(dossier, reponses, { recherche: true, "doc-testament": true });
+for (const attendu of [
+  "Jeanne Tremblay",
+  "Léa Tremblay — fille, 16 ans",
+  "Recherches testamentaires",
+  "Faites",
+  "patrimoine familial",
+  "Testament et codicilles",
+  "15 janvier 2026",
+]) {
+  if (!texte.includes(attendu)) throw new Error("dossier texte : manque « " + attendu + " »");
+}
+const htmlDossier = dossierEnHtml(dossier, reponses, {});
+if (!htmlDossier.includes("<!doctype html>") || !htmlDossier.includes("Jeanne Tremblay"))
+  throw new Error("dossier HTML incomplet");
+if (dossierEnHtml({ defuntNom: "<script>x</script>" }, reponses, {}).includes("<script>x"))
+  throw new Error("dossier HTML : échappement manquant");
+console.log("OK génération du dossier (sections, texte, HTML, échappement)");
+
+// 8. L'écran dossier se rend, aperçu compris
+const ecranDossier = renderToString(
+  h(DossierNotaire, {
+    dossier,
+    reponses,
+    faits: {},
+    onMaj: () => {},
+    onRetour: () => {},
+  })
+);
+for (const attendu of ["Votre dossier pour le notaire", "Jeanne Tremblay", "Dossier de succession"])
+  if (!ecranDossier.includes(attendu)) throw new Error("écran dossier : manque « " + attendu + " »");
+console.log("OK rendu écran dossier");
+
 console.log("TOUS LES TESTS PASSENT");
