@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vite-node tests/smoke.test.jsx",
-    "apercu": "node scripts/apercu.js"
+    "apercu": "vite-node scripts/apercu.js"
   },
   "dependencies": {
     "react": "^19.2.7",
