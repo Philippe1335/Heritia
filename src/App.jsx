@@ -2,9 +2,12 @@ import { useEffect, useState } from "react";
 import Accueil from "./components/Accueil.jsx";
 import Questionnaire from "./components/Questionnaire.jsx";
 import Parcours from "./components/Parcours.jsx";
-import { buildParcours } from "./data/parcours.js";
+import Assistant, { URL_ASSISTANT } from "./components/Assistant.jsx";
+import { buildParcours, CLES_REQUISES } from "./data/parcours.js";
 
 const CLE_STOCKAGE = "heritia-v1";
+
+const reponsesCompletes = (r) => r && CLES_REQUISES.every((c) => r[c] !== undefined);
 
 function chargerEtat() {
   try {
@@ -21,10 +24,16 @@ function chargerEtat() {
 export default function App() {
   const [etat, setEtat] = useState(() => {
     const sauvegarde = chargerEtat();
-    return sauvegarde
-      ? { ecran: "parcours", reponses: sauvegarde.reponses, faits: sauvegarde.faits || {} }
-      : { ecran: "accueil", reponses: null, faits: {} };
+    if (!sauvegarde) return { ecran: "accueil", reponses: null, faits: {} };
+    return {
+      // une sauvegarde d'une version antérieure (questions manquantes) renvoie
+      // au questionnaire prérempli plutôt qu'à un parcours incomplet
+      ecran: reponsesCompletes(sauvegarde.reponses) ? "parcours" : "questionnaire",
+      reponses: sauvegarde.reponses,
+      faits: sauvegarde.faits || {},
+    };
   });
+  const [chatOuvert, setChatOuvert] = useState(false);
 
   useEffect(() => {
     if (etat.ecran === "parcours" && etat.reponses) {
@@ -75,7 +84,11 @@ export default function App() {
           onBasculerFait={basculerFait}
           onModifier={modifierReponses}
           onRecommencer={recommencer}
+          onChat={URL_ASSISTANT ? () => setChatOuvert(true) : null}
         />
+      )}
+      {chatOuvert && (
+        <Assistant reponses={etat.reponses} onClose={() => setChatOuvert(false)} />
       )}
       <footer className="pied">
         <p>

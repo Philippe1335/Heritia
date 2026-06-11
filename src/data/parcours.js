@@ -1,13 +1,20 @@
 // Parcours de liquidation d'une succession au Québec.
 // Le parcours est construit dynamiquement selon les réponses au questionnaire :
-// { testament: "notarie" | "olographe" | "aucun", immeuble: bool, entreprise: bool,
-//   role: "liquidateur" | "heritier" | "preparation" }
+// { testament: "notarie" | "olographe" | "aucun",
+//   immeuble: bool, entreprise: bool,
+//   conjugal: "marie" | "fait" | "aucun",
+//   mineurs: bool, reer: bool,
+//   solvabilite: "solvable" | "incertaine",
+//   role: "liquidateur" | "heritier" | "preparation",
+//   dateDeces: "AAAA-MM-JJ" | null }
 //
-// Chaque tâche : { id, titre, description, delai?, attention?, notaire?, liens? }
-// - delai : repère temporel ou échéance légale, affiché en badge
+// Chaque tâche : { id, titre, description, delai?, attention?, notaire?, liens?, sousTaches? }
+// - delai : repère temporel ou échéance légale, affiché en badge (calculé à
+//   partir de la date du décès quand elle est connue)
 // - attention : mise en garde importante, affichée en encadré
 // - notaire : true si l'acte exige légalement un notaire
 // - liens : ressources officielles [{ label, url }]
+// - sousTaches : aide-mémoire cochable [{ id, t }]
 
 export const QUESTIONS = [
   {
@@ -39,6 +46,43 @@ export const QUESTIONS = [
     ],
   },
   {
+    cle: "conjugal",
+    q: "Quelle était la situation conjugale du défunt?",
+    aide: "Le mariage ou l'union civile déclenche la liquidation du patrimoine familial; le conjoint de fait n'a pas les mêmes droits.",
+    options: [
+      { v: "marie", l: "Marié ou uni civilement" },
+      { v: "fait", l: "Conjoint de fait" },
+      { v: "aucun", l: "Sans conjoint (célibataire, divorcé, veuf)" },
+    ],
+  },
+  {
+    cle: "mineurs",
+    q: "Des héritiers sont-ils mineurs (moins de 18 ans)?",
+    aide: "La part d'un mineur est encadrée par la loi : tutelle, avis au Curateur public et, selon la valeur, conseil de tutelle.",
+    options: [
+      { v: true, l: "Oui" },
+      { v: false, l: "Non" },
+    ],
+  },
+  {
+    cle: "reer",
+    q: "Le défunt détenait-il des REER, FERR ou CELI?",
+    aide: "Ces régimes ont des règles fiscales particulières au décès — un roulement au conjoint peut éviter beaucoup d'impôt.",
+    options: [
+      { v: true, l: "Oui" },
+      { v: false, l: "Non, ou je ne sais pas" },
+    ],
+  },
+  {
+    cle: "solvabilite",
+    q: "La succession risque-t-elle d'être insolvable (plus de dettes que de biens)?",
+    aide: "En cas de doute, la prudence s'impose : payer des dettes dans le mauvais ordre peut engager votre responsabilité personnelle.",
+    options: [
+      { v: "solvable", l: "Non, les biens dépassent clairement les dettes" },
+      { v: "incertaine", l: "Oui, ou c'est incertain" },
+    ],
+  },
+  {
     cle: "role",
     q: "Quel est votre rôle dans cette succession?",
     aide: "Votre parcours sera adapté : un héritier n'a pas les mêmes obligations qu'un liquidateur.",
@@ -48,6 +92,24 @@ export const QUESTIONS = [
       { v: "preparation", l: "Je m'informe à l'avance" },
     ],
   },
+  {
+    cle: "dateDeces",
+    q: "Quand le décès est-il survenu?",
+    aide: "La date permet de calculer vos échéances réelles : délai pour renoncer, date limite des déclarations de revenus, prestation de décès.",
+    type: "date",
+    si: (r) => r.role !== "preparation",
+  },
+];
+
+export const CLES_REQUISES = [
+  "testament",
+  "immeuble",
+  "entreprise",
+  "conjugal",
+  "mineurs",
+  "reer",
+  "solvabilite",
+  "role",
 ];
 
 export const LIBELLES_REPONSES = {
@@ -58,6 +120,11 @@ export const LIBELLES_REPONSES = {
   },
   immeuble: { true: "Avec immeuble", false: "Sans immeuble" },
   entreprise: { true: "Avec entreprise", false: "Sans entreprise" },
+  conjugal: {
+    marie: "Conjoint marié ou uni civilement",
+    fait: "Conjoint de fait",
+    aucun: "Sans conjoint",
+  },
   role: {
     liquidateur: "Liquidateur",
     heritier: "Héritier",
@@ -78,7 +145,6 @@ const LIENS = {
     label: "Recherche testamentaire — Barreau du Québec",
     url: "https://www.barreau.qc.ca/fr/services-public/registres-testaments-mandats/",
   },
-  rdprm: { label: "RDPRM", url: "https://www.rdprm.gouv.qc.ca/" },
   retraiteQc: {
     label: "Retraite Québec — prestations de décès",
     url: "https://www.rrq.gouv.qc.ca/fr/deces/Pages/deces.aspx",
@@ -103,54 +169,124 @@ const LIENS = {
     label: "Registre des droits personnels et réels mobiliers",
     url: "https://www.rdprm.gouv.qc.ca/fr/Pages/Deces.aspx",
   },
+  curateur: {
+    label: "Curateur public — succession et mineurs",
+    url: "https://www.curateur.gouv.qc.ca/",
+  },
 };
+
+// ───── Calcul des échéances à partir de la date du décès ─────
+
+const FORMAT_DATE = new Intl.DateTimeFormat("fr-CA", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+function versDate(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const d = new Date(iso + "T12:00:00");
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function plus(date, { jours = 0, mois = 0 }) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + mois);
+  d.setDate(d.getDate() + jours);
+  return d;
+}
+
+export function calculerEcheances(dateDecesIso) {
+  const deces = versDate(dateDecesIso);
+  if (!deces) return null;
+  // Déclaration finale : 30 avril de l'année suivante, ou 6 mois après le
+  // décès si celui-ci survient après le 31 octobre.
+  const impots =
+    deces.getMonth() >= 10
+      ? plus(deces, { mois: 6 })
+      : new Date(deces.getFullYear() + 1, 3, 30, 12);
+  return {
+    rrq60jours: FORMAT_DATE.format(plus(deces, { jours: 60 })),
+    option6mois: FORMAT_DATE.format(plus(deces, { mois: 6 })),
+    impots: FORMAT_DATE.format(impots),
+  };
+}
+
+// ───── Construction du parcours ─────
 
 export function buildParcours(r) {
   const estHeritier = r.role === "heritier";
+  const ech = calculerEcheances(r.dateDeces);
   const phases = [];
 
   // ───── Phase 1 : Premiers jours ─────
+  const t1 = [
+    {
+      id: "deces",
+      titre: "Obtenir le constat et la déclaration de décès",
+      description:
+        "Le médecin remplit le constat de décès. Le directeur funéraire remplit ensuite la déclaration de décès avec un proche et la transmet au Directeur de l'état civil. Ces deux documents sont le point de départ de toutes les démarches.",
+      liens: [LIENS.etatCivil],
+    },
+    {
+      id: "certificat",
+      titre: "Commander le certificat de décès",
+      description:
+        "Auprès du Directeur de l'état civil du Québec, en ligne, par la poste ou en personne. Prévoyez plusieurs copies : les banques, les assureurs et les gouvernements en exigeront chacun une.",
+      delai: "Délai de traitement : quelques semaines — commandez tôt",
+      liens: [LIENS.etatCivil],
+    },
+    {
+      id: "funerailles",
+      titre: "Organiser les funérailles",
+      description:
+        "Vérifiez d'abord si le défunt avait des arrangements funéraires préalables ou des volontés écrites (souvent dans le testament ou un contrat préalable). Les frais funéraires raisonnables sont une dette de la succession : conservez toutes les factures.",
+    },
+    {
+      id: "documents",
+      titre: "Rassembler les documents importants",
+      description:
+        "Un dossier complet vous fera gagner des mois. Cochez les documents au fur et à mesure que vous les retrouvez :",
+      sousTaches: [
+        { id: "doc-certificats", t: "Certificats de décès (plusieurs copies)" },
+        { id: "doc-testament", t: "Testament et codicilles" },
+        { id: "doc-mariage", t: "Contrat de mariage ou d'union civile" },
+        { id: "doc-bancaires", t: "Relevés bancaires et de placements" },
+        { id: "doc-assurances", t: "Polices d'assurance vie" },
+        { id: "doc-propriete", t: "Titres de propriété et certificat de localisation" },
+        { id: "doc-impots", t: "Déclarations de revenus des deux dernières années" },
+        { id: "doc-dettes", t: "Factures, relevés de cartes de crédit et de prêts" },
+        { id: "doc-logement", t: "Bail ou relevé hypothécaire" },
+        { id: "doc-vehicule", t: "Certificat d'immatriculation du véhicule" },
+        { id: "doc-cartes", t: "Cartes RAMQ et numéro d'assurance sociale" },
+      ],
+    },
+    {
+      id: "proteger",
+      titre: "Sécuriser les biens de la succession",
+      description:
+        "Résidence, véhicule, objets de valeur : assurez-vous qu'ils sont protégés et assurés. Le liquidateur doit agir avec prudence et diligence dès le décès, comme le ferait un administrateur du bien d'autrui.",
+      attention:
+        "Ne distribuez rien et ne videz pas la maison pour l'instant : l'inventaire doit d'abord être dressé.",
+    },
+  ];
+
+  if (r.solvabilite === "incertaine") {
+    t1.push({
+      id: "solvabilite",
+      titre: "Suspendre tout paiement tant que la solvabilité n'est pas claire",
+      description:
+        "Si les dettes risquent de dépasser les biens, ne payez aucun créancier (sauf les frais funéraires raisonnables) avant que l'inventaire soit dressé. La loi impose un ordre de paiement strict, et un héritier qui utilise les biens de la succession peut être réputé l'avoir acceptée — avec ses dettes.",
+      attention:
+        "Succession possiblement insolvable : consultez un notaire ou un avocat avant de payer quoi que ce soit ou de toucher aux biens.",
+    });
+  }
+
   phases.push({
     id: "premiers-jours",
     titre: "Premiers jours",
     sousTitre: "Les démarches immédiates après le décès",
-    taches: [
-      {
-        id: "deces",
-        titre: "Obtenir le constat et la déclaration de décès",
-        description:
-          "Le médecin remplit le constat de décès. Le directeur funéraire remplit ensuite la déclaration de décès avec un proche et la transmet au Directeur de l'état civil. Ces deux documents sont le point de départ de toutes les démarches.",
-        liens: [LIENS.etatCivil],
-      },
-      {
-        id: "certificat",
-        titre: "Commander le certificat de décès",
-        description:
-          "Auprès du Directeur de l'état civil du Québec, en ligne, par la poste ou en personne. Prévoyez plusieurs copies : les banques, les assureurs et les gouvernements en exigeront chacun une.",
-        delai: "Délai de traitement : quelques semaines — commandez tôt",
-        liens: [LIENS.etatCivil],
-      },
-      {
-        id: "funerailles",
-        titre: "Organiser les funérailles",
-        description:
-          "Vérifiez d'abord si le défunt avait des arrangements funéraires préalables ou des volontés écrites (souvent dans le testament ou un contrat préalable). Les frais funéraires raisonnables sont une dette de la succession : conservez toutes les factures.",
-      },
-      {
-        id: "documents",
-        titre: "Rassembler les documents importants",
-        description:
-          "Testament, contrat de mariage, relevés bancaires, polices d'assurance, titres de propriété, déclarations de revenus des dernières années, factures courantes. Un dossier complet vous fera gagner des mois.",
-      },
-      {
-        id: "proteger",
-        titre: "Sécuriser les biens de la succession",
-        description:
-          "Résidence, véhicule, objets de valeur : assurez-vous qu'ils sont protégés et assurés. Le liquidateur doit agir avec prudence et diligence dès le décès, comme le ferait un administrateur du bien d'autrui.",
-        attention:
-          "Ne distribuez rien et ne videz pas la maison pour l'instant : l'inventaire doit d'abord être dressé.",
-      },
-    ],
+    taches: t1,
   });
 
   // ───── Phase 2 : Premières semaines ─────
@@ -200,13 +336,25 @@ export function buildParcours(r) {
     );
   }
 
+  if (r.conjugal === "fait") {
+    t2.push({
+      id: "conjoint-fait",
+      titre: "Vérifier les droits du conjoint de fait survivant",
+      description:
+        "Le conjoint de fait n'hérite pas sans testament, mais il peut avoir d'autres droits : rente de conjoint survivant du RRQ, produits d'assurance vie s'il est bénéficiaire désigné, droits prévus dans un contrat de vie commune, ou recours pour enrichissement injustifié dans certains cas. Vérifiez chaque source séparément.",
+      liens: [LIENS.retraiteQc, LIENS.educaloi],
+    });
+  }
+
   if (estHeritier) {
     t2.push({
       id: "option",
       titre: "Décider d'accepter ou de renoncer à la succession",
       description:
         "Comme héritier, vous avez le droit d'accepter ou de renoncer à la succession. Si la succession est manifestement déficitaire (plus de dettes que de biens), la renonciation se fait par acte notarié ou par déclaration judiciaire. Attention : certains gestes (utiliser les biens, encaisser des sommes) peuvent valoir acceptation tacite.",
-      delai: "Délai de réflexion : 6 mois à compter du décès",
+      delai: ech
+        ? `Délai de réflexion de 6 mois : jusqu'au ${ech.option6mois}`
+        : "Délai de réflexion : 6 mois à compter du décès",
       attention:
         "Ne touchez pas aux biens de la succession avant d'avoir pris votre décision — vous pourriez être réputé avoir accepté.",
       notaire: true,
@@ -226,7 +374,9 @@ export function buildParcours(r) {
       titre: "Aviser les organismes gouvernementaux",
       description:
         "Retraite Québec (rentes, prestation de décès du RRQ d'environ 2 500 $), Service Canada (pension de la Sécurité de la vieillesse, prestations), RAMQ, SAAQ (permis, immatriculation), Revenu Québec et ARC. Plusieurs prestations cessent au décès : les sommes versées en trop devront être remboursées.",
-      delai: "Prestation de décès du RRQ : demande dans les 60 jours pour le payeur des funérailles",
+      delai: ech
+        ? `Prestation de décès du RRQ : demande prioritaire du payeur des funérailles avant le ${ech.rrq60jours}`
+        : "Prestation de décès du RRQ : demande dans les 60 jours pour le payeur des funérailles",
       liens: [LIENS.retraiteQc, LIENS.quebecDeces],
     },
     {
@@ -269,6 +419,16 @@ export function buildParcours(r) {
     },
   ];
 
+  if (r.conjugal === "marie") {
+    t3.push({
+      id: "patrimoine-familial",
+      titre: "Liquider le patrimoine familial et les droits matrimoniaux",
+      description:
+        "Avant de partager la succession, il faut d'abord régler les droits du conjoint survivant : partage du patrimoine familial (résidences, meubles, véhicules, droits accumulés dans les REER et régimes de retraite pendant le mariage), liquidation du régime matrimonial et, le cas échéant, prestation compensatoire. La succession se partage seulement sur ce qui reste. Un notaire est fortement recommandé pour ce calcul.",
+      liens: [LIENS.educaloi],
+    });
+  }
+
   if (r.immeuble) {
     t3.push({
       id: "transmission-immeuble",
@@ -290,14 +450,35 @@ export function buildParcours(r) {
     });
   }
 
+  if (r.reer) {
+    t3.push({
+      id: "reer",
+      titre: "Traiter les REER, FERR et CELI",
+      description:
+        "Vérifiez les bénéficiaires désignés dans chaque régime. Un roulement fiscal au conjoint survivant (ou à un enfant mineur ou handicapé à charge) permet de transférer les REER et FERR sans impôt immédiat. Sinon, leur pleine valeur s'ajoute aux revenus de la déclaration finale — l'impact fiscal peut être considérable. Le CELI, lui, se transfère sans impôt mais cesse de croître à l'abri après le décès.",
+      liens: [LIENS.arc, LIENS.revenuQc],
+    });
+  }
+
+  if (r.mineurs) {
+    t3.push({
+      id: "mineurs",
+      titre: "Protéger la part des héritiers mineurs",
+      description:
+        "Un mineur ne peut pas recevoir directement sa part : elle est administrée par son tuteur (généralement les parents). Le liquidateur doit aviser le Curateur public lorsque la valeur transmise à un mineur dépasse les seuils prévus; un conseil de tutelle et une sûreté peuvent être exigés. Vérifiez aussi si le testament prévoit une fiducie ou une administration prolongée.",
+      liens: [LIENS.curateur],
+    });
+  }
+
   t3.push(
     {
       id: "impots",
       titre: "Produire les déclarations de revenus du défunt",
       description:
         "Déclaration finale au provincial (Revenu Québec) et au fédéral (ARC) pour l'année du décès, plus toute année antérieure manquante. Au décès, la loi présume que tous les biens sont vendus à leur juste valeur : un gain en capital latent (chalet, immeuble locatif, placements) peut générer un impôt important.",
-      delai:
-        "Au plus tard le 30 avril de l'année suivante, ou 6 mois après le décès si celui-ci survient après le 31 octobre",
+      delai: ech
+        ? `Date limite des déclarations finales : ${ech.impots}`
+        : "Au plus tard le 30 avril de l'année suivante, ou 6 mois après le décès si celui-ci survient après le 31 octobre",
       liens: [LIENS.revenuQc, LIENS.arc],
     },
     {

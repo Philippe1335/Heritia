@@ -10,14 +10,21 @@ const INTRO_ROLE = {
     "Vous vous informez à l'avance — une excellente idée. Voici le déroulement complet d'une liquidation au Québec, pour savoir à quoi vous attendre le moment venu.",
 };
 
-function Tache({ tache, fait, ouvert, onBasculer, onOuvrir }) {
+const FORMAT_DATE = new Intl.DateTimeFormat("fr-CA", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+function Tache({ tache, faits, ouvert, onBasculerFait, onOuvrir }) {
+  const fait = !!faits[tache.id];
   return (
     <div className={`tache${fait ? " faite" : ""}`}>
       <button
         className={`case${fait ? " cochee" : ""}`}
         aria-label={fait ? "Marquer comme à faire" : "Marquer comme faite"}
         aria-pressed={fait}
-        onClick={onBasculer}
+        onClick={() => onBasculerFait(tache.id)}
       >
         {fait && "✓"}
       </button>
@@ -36,6 +43,22 @@ function Tache({ tache, fait, ouvert, onBasculer, onOuvrir }) {
         )}
         <div className={`tache-detail${ouvert ? " ouvert" : ""}`}>
           <p>{tache.description}</p>
+          {tache.sousTaches && (
+            <ul className="sous-liste">
+              {tache.sousTaches.map((st) => (
+                <li key={st.id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={!!faits[st.id]}
+                      onChange={() => onBasculerFait(st.id)}
+                    />
+                    <span className={faits[st.id] ? "barre" : ""}>{st.t}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
           {tache.attention && (
             <p className="attention">
               <strong>Attention&nbsp;:</strong> {tache.attention}
@@ -63,6 +86,7 @@ export default function Parcours({
   onBasculerFait,
   onModifier,
   onRecommencer,
+  onChat,
 }) {
   const [ouvert, setOuvert] = useState(null);
 
@@ -76,8 +100,14 @@ export default function Parcours({
     LIBELLES_REPONSES.testament[reponses.testament],
     LIBELLES_REPONSES.immeuble[String(reponses.immeuble)],
     LIBELLES_REPONSES.entreprise[String(reponses.entreprise)],
+    LIBELLES_REPONSES.conjugal[reponses.conjugal],
+    reponses.mineurs && "Héritiers mineurs",
+    reponses.reer && "REER / FERR / CELI",
+    reponses.solvabilite === "incertaine" && "Solvabilité à vérifier",
     LIBELLES_REPONSES.role[reponses.role],
-  ];
+    reponses.dateDeces &&
+      `Décès : ${FORMAT_DATE.format(new Date(reponses.dateDeces + "T12:00:00"))}`,
+  ].filter(Boolean);
 
   return (
     <main className="parcours">
@@ -125,9 +155,9 @@ export default function Parcours({
               <Tache
                 key={t.id}
                 tache={t}
-                fait={!!faits[t.id]}
+                faits={faits}
                 ouvert={ouvert === t.id}
-                onBasculer={() => onBasculerFait(t.id)}
+                onBasculerFait={onBasculerFait}
                 onOuvrir={() => setOuvert(ouvert === t.id ? null : t.id)}
               />
             ))}
@@ -143,6 +173,12 @@ export default function Parcours({
           Recommencer à zéro
         </button>
       </div>
+
+      {onChat && (
+        <button className="btn-flottant" onClick={onChat}>
+          Poser une question à l'assistant
+        </button>
+      )}
     </main>
   );
 }

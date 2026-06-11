@@ -2,7 +2,7 @@
   --fond: #fbf8f2;
   --encre: #1f2b38;
   --encre-douce: #46556a;
-  --sourdine: #8a8273;
+  --sourdine: #6e6759; /* assez foncé pour un contraste AA sur fond crème */
   --or: #b8923e;
   --or-fonce: #a07f33;
   --trait: #e4ddd0;
@@ -205,6 +205,39 @@ button:focus-visible {
 .btn-option.choisi {
   border-color: var(--or);
   box-shadow: inset 0 0 0 1px var(--or);
+}
+
+.date-bloc {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.date-input {
+  border: 1px solid var(--trait-fort);
+  border-radius: 12px;
+  padding: 16px 20px;
+  font-size: 16px;
+  font-family: var(--sans);
+  color: var(--encre);
+  background: var(--blanc);
+}
+
+.date-input:focus-visible {
+  outline: 2px solid var(--or);
+  outline-offset: 2px;
+}
+
+.date-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.btn-or:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .q-aide {
@@ -430,6 +463,33 @@ button:focus-visible {
   padding-right: 24px;
 }
 
+.sous-liste {
+  list-style: none;
+  margin: 6px 0 8px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sous-liste label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 14.5px;
+  line-height: 1.5;
+  color: var(--encre-douce);
+  cursor: pointer;
+}
+
+.sous-liste input[type="checkbox"] {
+  accent-color: var(--or);
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  transform: translateY(2px);
+}
+
 .attention {
   background: #faf0e4;
   border: 1px solid #ecd9bd;
@@ -465,6 +525,129 @@ button:focus-visible {
   margin-top: 16px;
   border-top: 1px solid var(--trait);
   padding-top: 24px;
+}
+
+/* ───── Assistant ───── */
+.btn-flottant {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--encre);
+  color: var(--fond);
+  border: none;
+  border-radius: 30px;
+  padding: 15px 28px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 24px rgba(31, 43, 56, 0.25);
+  font-family: var(--sans);
+}
+
+.voile {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 43, 56, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 50;
+}
+
+.panneau {
+  background: var(--fond);
+  width: 100%;
+  max-width: 560px;
+  height: 82vh;
+  border-radius: 16px 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.panneau-entete {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--trait);
+  font-family: var(--serif);
+  font-weight: 700;
+}
+
+.btn-fermer {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: var(--sourdine);
+}
+
+.fil {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bulle-ia {
+  background: var(--blanc);
+  border: 1px solid var(--trait);
+  border-radius: 12px 12px 12px 4px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.55;
+  max-width: 88%;
+  white-space: pre-wrap;
+}
+
+.bulle-user {
+  background: var(--encre);
+  color: var(--fond);
+  border-radius: 12px 12px 4px 12px;
+  padding: 12px 14px;
+  font-size: 15px;
+  line-height: 1.55;
+  max-width: 88%;
+  align-self: flex-end;
+  white-space: pre-wrap;
+}
+
+.saisie {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 4px;
+  border-top: 1px solid var(--trait);
+}
+
+.saisie-input {
+  flex: 1;
+  border: 1px solid var(--trait-fort);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 15px;
+  background: var(--blanc);
+  outline: none;
+  font-family: var(--sans);
+}
+
+.saisie-input:focus-visible {
+  outline: 2px solid var(--or);
+  outline-offset: 1px;
+}
+
+.btn-envoyer {
+  padding: 12px 20px;
+}
+
+.mini-disclaimer {
+  font-size: 11.5px;
+  color: var(--sourdine);
+  text-align: center;
+  padding: 6px 16px 12px;
 }
 
 /* ───── Pied de page ───── */

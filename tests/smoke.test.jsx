@@ -5,29 +5,47 @@ import { createElement as h } from "react";
 import App from "../src/App.jsx";
 import Parcours from "../src/components/Parcours.jsx";
 import Questionnaire from "../src/components/Questionnaire.jsx";
-import { buildParcours, QUESTIONS } from "../src/data/parcours.js";
+import { buildParcours, calculerEcheances, QUESTIONS } from "../src/data/parcours.js";
+
+const base = {
+  testament: "notarie",
+  immeuble: false,
+  entreprise: false,
+  conjugal: "aucun",
+  mineurs: false,
+  reer: false,
+  solvabilite: "solvable",
+  role: "liquidateur",
+  dateDeces: null,
+};
 
 // 1. La personnalisation produit les bonnes tâches selon les réponses
 const cas = [
   [
-    { testament: "notarie", immeuble: false, entreprise: false, role: "liquidateur" },
+    base,
     ["copie-testament"],
-    ["verification", "transmission-immeuble", "entreprise", "option", "heritiers-legaux"],
+    ["verification", "transmission-immeuble", "entreprise", "option", "heritiers-legaux",
+     "patrimoine-familial", "conjoint-fait", "mineurs", "reer", "solvabilite"],
   ],
   [
-    { testament: "olographe", immeuble: true, entreprise: false, role: "liquidateur" },
+    { ...base, testament: "olographe", immeuble: true },
     ["verification", "transmission-immeuble"],
     ["copie-testament", "heritiers-legaux"],
   ],
   [
-    { testament: "aucun", immeuble: true, entreprise: true, role: "heritier" },
+    { ...base, testament: "aucun", immeuble: true, entreprise: true, role: "heritier" },
     ["heritiers-legaux", "designation-liquidateur", "transmission-immeuble", "entreprise", "option"],
     ["copie-testament", "verification"],
   ],
   [
-    { testament: "notarie", immeuble: true, entreprise: true, role: "preparation" },
-    ["copie-testament", "transmission-immeuble", "entreprise"],
-    ["option"],
+    { ...base, conjugal: "marie", mineurs: true, reer: true, solvabilite: "incertaine" },
+    ["patrimoine-familial", "mineurs", "reer", "solvabilite"],
+    ["conjoint-fait", "option"],
+  ],
+  [
+    { ...base, testament: "aucun", conjugal: "fait" },
+    ["conjoint-fait", "heritiers-legaux"],
+    ["patrimoine-familial"],
   ],
 ];
 
@@ -38,10 +56,38 @@ for (const [r, doit, neDoitPas] of cas) {
     if (!ids.includes(id)) throw new Error(`manque ${id} pour ${JSON.stringify(r)}`);
   for (const id of neDoitPas)
     if (ids.includes(id)) throw new Error(`${id} ne devrait pas être là pour ${JSON.stringify(r)}`);
-  console.log(`OK ${JSON.stringify(r)} → ${ids.length} tâches`);
+  console.log(`OK personnalisation → ${ids.length} tâches`);
 }
 
-// 2. Chaque écran se rend sans erreur
+// 2. Le calcul des échéances à partir de la date du décès
+const e1 = calculerEcheances("2026-01-15");
+if (!e1.option6mois.includes("juillet") || !e1.option6mois.includes("2026"))
+  throw new Error("option 6 mois incorrecte : " + e1.option6mois);
+if (!e1.impots.includes("30 avril") || !e1.impots.includes("2027"))
+  throw new Error("échéance d'impôts incorrecte : " + e1.impots);
+const e2 = calculerEcheances("2025-12-01");
+if (!e2.impots.includes("juin") || !e2.impots.includes("2026"))
+  throw new Error("décès de fin d'année : échéance 6 mois attendue, reçu " + e2.impots);
+if (calculerEcheances(null) !== null || calculerEcheances("n'importe quoi") !== null)
+  throw new Error("date invalide : null attendu");
+console.log("OK calcul des échéances");
+
+// 3. Les échéances calculées apparaissent dans les tâches
+const avecDate = buildParcours({ ...base, role: "heritier", dateDeces: "2026-01-15" });
+const tachesAvecDate = avecDate.flatMap((p) => p.taches);
+const option = tachesAvecDate.find((t) => t.id === "option");
+if (!option.delai.includes("juillet 2026"))
+  throw new Error("le délai de l'option n'utilise pas la date : " + option.delai);
+console.log("OK échéances injectées dans le parcours");
+
+// 4. La question de date est retirée pour qui s'informe à l'avance
+const sansDate = QUESTIONS.filter((q) => !q.si || q.si({ role: "preparation" }));
+const avecDateQ = QUESTIONS.filter((q) => !q.si || q.si({ role: "liquidateur" }));
+if (sansDate.length !== avecDateQ.length - 1)
+  throw new Error("la question de date devrait être conditionnelle au rôle");
+console.log("OK question de date conditionnelle");
+
+// 5. Chaque écran se rend sans erreur
 const accueil = renderToString(h(App));
 if (!accueil.includes("HÉRITIA") || !accueil.includes("Commencer mon parcours"))
   throw new Error("accueil incomplet");
@@ -51,23 +97,41 @@ const quest = renderToString(h(Questionnaire, { reponsesInitiales: null, onDone:
 if (!quest.includes(QUESTIONS[0].q)) throw new Error("questionnaire incomplet");
 console.log("OK rendu questionnaire");
 
-const reponses = { testament: "aucun", immeuble: true, entreprise: true, role: "heritier" };
+const reponses = {
+  ...base,
+  testament: "aucun",
+  immeuble: true,
+  entreprise: true,
+  conjugal: "marie",
+  mineurs: true,
+  reer: true,
+  solvabilite: "incertaine",
+  role: "heritier",
+  dateDeces: "2026-01-15",
+};
 const parcours = renderToString(
   h(Parcours, {
     phases: buildParcours(reponses),
     reponses,
-    faits: { deces: true },
+    faits: { deces: true, "doc-testament": true },
     onBasculerFait: () => {},
     onModifier: () => {},
     onRecommencer: () => {},
+    onChat: null,
   })
 );
 for (const attendu of [
   "Votre parcours de liquidation",
-  "conjoint de fait",
   "Notaire requis",
   "Héritier",
   "MR-14.A",
+  "patrimoine familial",
+  "Curateur public",
+  "roulement",
+  "juillet 2026",
+  "Certificats de décès",
+  "Héritiers mineurs",
+  "Solvabilité à vérifier",
 ]) {
   if (!parcours.includes(attendu)) throw new Error("parcours : manque « " + attendu + " »");
 }
